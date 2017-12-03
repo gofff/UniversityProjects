@@ -22,8 +22,8 @@ int main(int argc, char * argv[])
 
 auto start = std::chrono::system_clock::now();
 
-	//float diff = p.Solve();
-	float diff = p.SolveMPI();
+	float diff = p.Solve();
+	//float diff = p.SolveMPI();
 
 
 auto end = std::chrono::system_clock::now();

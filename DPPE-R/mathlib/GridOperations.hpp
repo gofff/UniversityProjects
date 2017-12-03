@@ -20,7 +20,7 @@ void Grid<VALTYPE>::operator -= (const Grid<VALTYPE> & grid)
 		pData += nCols + 1;//смещаем на елемент (1,1)
 		pSub += nCols + 1;//смещаем на елемент (1,1)
 #ifdef OMP
-#pragma omp parallel for
+#pragma omp parallel for collapse(2)
 #endif
 		for (uint32_t y = 1; y < nRows - 1; ++y)
 		{
@@ -41,7 +41,7 @@ void Grid<VALTYPE>::operator *= (const VALTYPE nMultiplier)
 {
 	VALTYPE *pData = ptrData.get()+nCols+1;
 #ifdef OMP
-#pragma omp parallel for
+#pragma omp parallel for collapse(2)
 #endif
 	for (uint32_t y = 1; y < nRows-1; ++y)
 	{
@@ -78,7 +78,7 @@ void Grid<VALTYPE>::Laplacian(const Grid<VALTYPE> & grid, const VALTYPE fStepX, 
 		auto * pNextRowValue = grid.ptrData.get() + 2 * nCols + 1;
 		auto * pCurDst = ptrData.get() + nCols + 1;
 #ifdef OMP
-#pragma omp parallel for
+#pragma omp parallel for collapse(2)
 #endif
 		for (uint32_t y = 1; y < nRows - 1; ++y)
 		{
@@ -108,7 +108,7 @@ VALTYPE Grid<VALTYPE>::MaxNormDifference()
 	VALTYPE fMax = -std::numeric_limits<VALTYPE>::min();
 	auto * pCurSrc = ptrData.get() + nCols + 1;
 #ifdef OMP
-#pragma omp parallel for
+#pragma omp parallel for collapse(2)
 #endif
 	for (uint32_t i = 1; i < nRows - 1; ++i)
 	{
@@ -151,7 +151,7 @@ void Grid<VALTYPE>::Fill(std::function<VALTYPE(VALTYPE, VALTYPE)> Func_, FillTyp
 	{
 		auto * pCurValue = pValues;
 #ifdef OMP
-#pragma omp parallel for
+#pragma omp parallel for collapse(2)
 #endif
 		for (uint32_t y = 0; y < nRows; ++y)
 		{
@@ -217,7 +217,7 @@ VALTYPE DotProduct(const Grid<VALTYPE> & grid1, const Grid<VALTYPE> & grid2, con
 	auto * pCurMult1 = grid1.ptrData.get()+grid1.nCols+1;
 	auto * pCurMult2 = grid2.ptrData.get()+grid2.nCols+1;
 #ifdef OMP
-#pragma omp parallel for
+#pragma omp parallel for collapse(2)
 #endif
 	for (uint32_t y = 1; y < grid1.nRows-1; ++y)
 	{
@@ -242,7 +242,7 @@ VALTYPE DotProduct_MPI(const Grid<VALTYPE> & grid1, const Grid<VALTYPE> & grid2,
 	auto * pCurMult1 = grid1.ptrData.get() + (1+ numTopNeighb)*grid1.nCols + 1 + numLeftNeighb;
 	auto * pCurMult2 = grid2.ptrData.get() + (1 + numTopNeighb)*grid2.nCols + 1 + numLeftNeighb;
 #ifdef OMP
-#pragma omp parallel for
+#pragma omp parallel for collapse(2)
 #endif
 	for (uint32_t y = 1 + numTopNeighb; y < grid1.nRows - 1; ++y)
 	{
