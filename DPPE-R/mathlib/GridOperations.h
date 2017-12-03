@@ -6,8 +6,10 @@
 #include <deque>
 #include <limits>
 #include <string>
-#include<iostream>
+#include <iostream>
 #include <iomanip>
+
+//#define LOG
 enum FillTypes {FILL_ALL, FILL_BOUNDARY};
 
 template <typename VALTYPE>
@@ -18,15 +20,15 @@ public:
 	uint32_t nRows;
 	uint32_t nCols;
 
-	Grid() = default;
+	Grid() {}
 	Grid(const uint32_t nRows_, const uint32_t nCols_);
 
 	void operator -= (const Grid<VALTYPE> & grid);
 	void operator *= (const VALTYPE nMultiplier);
 	void operator = (const Grid<VALTYPE> & grid);
 
-	void Laplacian(const Grid & grid, const VALTYPE fStep, const VALTYPE fHalfStep);
-	VALTYPE MaxNormDifference();
+	void Laplacian(const Grid & grid, const VALTYPE fStepX, const VALTYPE fStepY, const VALTYPE fHalfStep);
+	virtual VALTYPE MaxNormDifference();
 	void dump(const std::string str)
 	{
 #ifdef LOG
@@ -44,19 +46,18 @@ public:
 #endif
 	}
 	void Fill(std::function<VALTYPE(VALTYPE, VALTYPE)> Func_, FillTypes fillType,
-				const VALTYPE x0, const VALTYPE y0, const VALTYPE fStep);
+				const VALTYPE x0, const VALTYPE y0, const VALTYPE fStepX, const VALTYPE fStepY);
 private:
 	Grid(Grid<VALTYPE>& grid) = default;
 	Grid(Grid<VALTYPE>&&) = default;
 };
-
 
 template<typename VALTYPE>
 class GridStorage
 {
 public:
 	GridStorage(const uint64_t nSize, const uint32_t nNumParts);
-	~GridStorage();
+	~GridStorage() {};
 	std::shared_ptr<VALTYPE> getMem();
 	void free(std::shared_ptr<VALTYPE>& ptr);
 private:

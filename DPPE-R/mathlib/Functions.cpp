@@ -20,13 +20,12 @@ inline double DKnownFunc(const double x, const double y)
 	return (x*x + y*y)*sin(x*y);
 }
 
-
-inline float FBoundaryFuncAzat(const float x, const  float y)
+inline float FBoundaryFunc10(const float x, const  float y)
 {
-	return (1.0-x*x)*(1.0 - x*x)+ (1.0 - y*y)*(1.0 - y*y);
+	return sqrt(4+x*y);
 }
 
-inline float FKnownFuncAzat(const float x, const  float y)
+inline float FKnownFunc10(const float x, const  float y)
 {
-	return 4*(2-3*x*x-3*y*y);
+	return (x*x+y*y)/(4*sqrt((4+x*y)*(4 + x*y)*(4 + x*y)));
 }

@@ -6,6 +6,27 @@
 #include <functional>
 #include "GridOperations.h"
 #include "mpi.h"
+#include<iostream>
+#include <iomanip>
+
+template<typename VALTYPE>
+struct BoundaryBuffer
+{
+	int nSizeX;
+	int nSizeY;
+	std::shared_ptr<VALTYPE> ptrTop;
+	std::shared_ptr<VALTYPE> ptrBot;
+	std::shared_ptr<VALTYPE> ptrLeft;
+	std::shared_ptr<VALTYPE> ptrRight;
+};
+
+struct ProcessorNeighborhood
+{
+	int TopNeighb;
+	int BotNeighb;
+	int LeftNeighb;
+	int RightNeighb;
+};
 
 template <typename VALTYPE>
 class DirichletProblem
@@ -32,7 +53,13 @@ public:
 
 	VALTYPE Solve();
 	VALTYPE SolveMPI();
-	void SetPrecision(const VALTYPE eps);
+	void InitSubproblem_mpi();
+	void RefreshBoundaries(Grid<VALTYPE> & grid, const uint32_t nIterNum);
+	void SendBoundaries(const Grid<VALTYPE> & grid, const uint32_t nIterNum);
+	void AgregateSolution();
+	void RememberGlobalProblemParameters();
+
+	void SetPrecision(const VALTYPE eps_) { eps = eps_;}
 	void PrintSolution()
 	{
 		VALTYPE * data = solution.ptrData.get();
@@ -80,15 +107,34 @@ public:
 	VALTYPE y1;
 private:
 	VALTYPE fStepX;
-	VALTYPE fHalfStepX;
 	VALTYPE fStepY;
+	VALTYPE fHalfStepX;
 	VALTYPE fHalfStepY;
+	VALTYPE fAvStepX;
+	VALTYPE fAvStepY;
+	uint32_t nPointsX_nompi;
+	uint32_t nPointsY_nompi;
+	VALTYPE x0_nompi;
+	VALTYPE x1_nompi;
+	VALTYPE y0_nompi;
+	VALTYPE y1_nompi;
+	VALTYPE fStepX_nompi;
+	VALTYPE fStepY_nompi;
+	VALTYPE fAvStepX_nompi;
+	VALTYPE fAvStepY_nompi;
 	VALTYPE eps;
 	std::function<VALTYPE(const VALTYPE, const VALTYPE)> BoundaryFunction;
 	std::function<VALTYPE(const VALTYPE, const VALTYPE)> AppFunction;
 	Grid<VALTYPE> solution;
 	uint32_t num_iter;
 	VALTYPE error;
+
+	BoundaryBuffer<VALTYPE> BBufer;
+	BoundaryBuffer<VALTYPE> SendBufer;
+	ProcessorNeighborhood Neighbors;
+
+	MPI_Comm Comm_mpi;
+	int nProcIndex;
 };
 
 
