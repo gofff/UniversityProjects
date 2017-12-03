@@ -3,6 +3,20 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
+#Cmake files
+*/CMakeCache.txt
+*/CMakeFiles
+*/CMakeScripts
+*/Testing
+*/Makefile
+*/cmake_install.cmake
+*/install_manifest.txt
+*/compile_commands.json
+*/CTestTestfile.cmake
+
+#Windows build directories
+/DPPE-R/build/
+
 # User-specific files
 *.suo
 *.user

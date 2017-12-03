@@ -95,9 +95,8 @@ public:
 		}
 	}
 
-	~DirichletProblem() = default;
-	DirichletProblem(DirichletProblem&) = default;
-	DirichletProblem(DirichletProblem&&) = default;
+	~DirichletProblem() {}
+	
 
 	uint32_t nPointsX;
 	uint32_t nPointsY;

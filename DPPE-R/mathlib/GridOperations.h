@@ -47,9 +47,6 @@ public:
 	}
 	void Fill(std::function<VALTYPE(VALTYPE, VALTYPE)> Func_, FillTypes fillType,
 				const VALTYPE x0, const VALTYPE y0, const VALTYPE fStepX, const VALTYPE fStepY);
-private:
-	Grid(Grid<VALTYPE>& grid) = default;
-	Grid(Grid<VALTYPE>&&) = default;
 };
 
 template<typename VALTYPE>
