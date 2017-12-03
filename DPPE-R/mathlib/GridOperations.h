@@ -10,6 +10,9 @@
 #include <iomanip>
 
 //#define LOG
+#define OMP
+
+
 enum FillTypes {FILL_ALL, FILL_BOUNDARY};
 
 template <typename VALTYPE>

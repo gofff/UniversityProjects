@@ -19,6 +19,9 @@ void Grid<VALTYPE>::operator -= (const Grid<VALTYPE> & grid)
 		VALTYPE * pSub = grid.ptrData.get();
 		pData += nCols + 1;//смещаем на елемент (1,1)
 		pSub += nCols + 1;//смещаем на елемент (1,1)
+#ifdef OMP
+#pragma omp parallel for
+#endif
 		for (uint32_t y = 1; y < nRows - 1; ++y)
 		{
 			for (uint32_t x = 1; x < nCols - 1; ++x)
@@ -37,6 +40,9 @@ template <typename VALTYPE>
 void Grid<VALTYPE>::operator *= (const VALTYPE nMultiplier)
 {
 	VALTYPE *pData = ptrData.get()+nCols+1;
+#ifdef OMP
+#pragma omp parallel for
+#endif
 	for (uint32_t y = 1; y < nRows-1; ++y)
 	{
 		for (uint32_t x = 1; x < nCols-1; ++x)
@@ -60,12 +66,6 @@ void Grid<VALTYPE>::operator = (const Grid<VALTYPE> & grid)
 	VALTYPE * pDst = ptrData.get();
 	VALTYPE * pSrc = grid.ptrData.get();
 	memcpy(pDst, pSrc, grid.nRows*grid.nCols * sizeof(VALTYPE));
-	//for (uint64_t i = 0; i < grid.nRows*grid.nCols; ++i)
-	//{
-	//	*pDst = *pSrc;
-	//	++pDst;
-	//	++pSrc;
-	//}
 }
 
 template <typename VALTYPE>
@@ -77,7 +77,9 @@ void Grid<VALTYPE>::Laplacian(const Grid<VALTYPE> & grid, const VALTYPE fStepX, 
 		auto * pCurRowValue = grid.ptrData.get() + nCols + 1;
 		auto * pNextRowValue = grid.ptrData.get() + 2 * nCols + 1;
 		auto * pCurDst = ptrData.get() + nCols + 1;
-
+#ifdef OMP
+#pragma omp parallel for
+#endif
 		for (uint32_t y = 1; y < nRows - 1; ++y)
 		{
 			for (uint32_t x = 1; x < nCols - 1; ++x)
@@ -105,6 +107,9 @@ VALTYPE Grid<VALTYPE>::MaxNormDifference()
 {
 	VALTYPE fMax = -std::numeric_limits<VALTYPE>::min();
 	auto * pCurSrc = ptrData.get() + nCols + 1;
+#ifdef OMP
+#pragma omp parallel for
+#endif
 	for (uint32_t i = 1; i < nRows - 1; ++i)
 	{
 		for (uint32_t j = 1; j < nCols - 1; ++j)
@@ -145,6 +150,9 @@ void Grid<VALTYPE>::Fill(std::function<VALTYPE(VALTYPE, VALTYPE)> Func_, FillTyp
 	else
 	{
 		auto * pCurValue = pValues;
+#ifdef OMP
+#pragma omp parallel for
+#endif
 		for (uint32_t y = 0; y < nRows; ++y)
 		{
 			for (uint32_t x = 0; x < nCols; ++x)
@@ -208,6 +216,9 @@ VALTYPE DotProduct(const Grid<VALTYPE> & grid1, const Grid<VALTYPE> & grid2, con
 	const VALTYPE fPowK = k;
 	auto * pCurMult1 = grid1.ptrData.get()+grid1.nCols+1;
 	auto * pCurMult2 = grid2.ptrData.get()+grid2.nCols+1;
+#ifdef OMP
+#pragma omp parallel for
+#endif
 	for (uint32_t y = 1; y < grid1.nRows-1; ++y)
 	{
 		for (uint32_t x = 1; x < grid1.nCols-1; ++x)
@@ -230,12 +241,14 @@ VALTYPE DotProduct_MPI(const Grid<VALTYPE> & grid1, const Grid<VALTYPE> & grid2,
 	const VALTYPE fPowK = k*k;
 	auto * pCurMult1 = grid1.ptrData.get() + (1+ numTopNeighb)*grid1.nCols + 1 + numLeftNeighb;
 	auto * pCurMult2 = grid2.ptrData.get() + (1 + numTopNeighb)*grid2.nCols + 1 + numLeftNeighb;
+#ifdef OMP
+#pragma omp parallel for
+#endif
 	for (uint32_t y = 1 + numTopNeighb; y < grid1.nRows - 1; ++y)
 	{
 		for (uint32_t x = 1 + numLeftNeighb; x < grid1.nCols - 1; ++x)
 		{
 			fResult += fPowK * (*pCurMult1) * (*pCurMult2);
-			//std::cout <<numLeftNeighb<<' '<<y<<' '<<x<<' '<< (*pCurMult1) << ' ' << (*pCurMult2) << std::endl;
 			++pCurMult1;
 			++pCurMult2;
 		}

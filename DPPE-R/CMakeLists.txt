@@ -5,9 +5,11 @@ project(Parallel_task2)
 if (CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
     set (CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/install" CACHE PATH "default install path" FORCE )
 endif()
-set(CMAKE_CXX_FLAGS "-fopenmp -std=c++0x")
+set(CMAKE_CXX_FLAGS "-fopenmp -std=c++0x -O3")
 
 find_package(MPI REQUIRED)
+
+#FIND_PACKAGE(OpenMP REQUIRED)
 
 set(MAIN_SOURCES "src/main.cpp")
 

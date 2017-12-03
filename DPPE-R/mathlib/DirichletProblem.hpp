@@ -51,7 +51,6 @@ VALTYPE DirichletProblem<VALTYPE>::Solve()
 	rLap.Laplacian(r, fStepX, fStepY, fHalfStepX);// d(r_{1})
 	rLap.dump("Lap(Lap(p)-F)");
 	tau = DotProduct(r, r, k) / DotProduct(rLap, r, k); 
-	std::cout <<"tau= "<< DotProduct(r, r, k)<<' '<< DotProduct(rLap, r, k)<<' '<< tau << std::endl;
 	r *= tau; 
 	r.dump("r*tau");
 	diff = r.MaxNormDifference(); // |p_{1} - p_{0}| = tau*r
@@ -75,7 +74,6 @@ VALTYPE DirichletProblem<VALTYPE>::Solve()
 		if (memcmp(rLap.ptrData.get(), gLap.ptrData.get(), gLap.nCols*gLap.nRows * sizeof(VALTYPE)))
 		{
 			alpha = DotProduct(rLap, g_1, k) / DotProduct(gLap, g_1, k);
-			std::cout <<"a= "<< alpha << std::endl;
 		}
 		else
 		{
@@ -93,7 +91,6 @@ VALTYPE DirichletProblem<VALTYPE>::Solve()
 		if (memcmp(gLap.ptrData.get(), g.ptrData.get(), g.nCols*g.nRows * sizeof(VALTYPE)))
 		{
 			tau = DotProduct(r, g, k) / DotProduct(gLap, g, k);
-			std::cout << "tau= " << tau << std::endl;
 		}
 		else
 		{
@@ -120,13 +117,13 @@ VALTYPE DirichletProblem<VALTYPE>::Solve()
 			}
 		}
 		////////////////////////////////////
-		std::cout << num_iter <<' '<<diff<<' '<<maxV<< std::endl;
-		
+		//std::cout << num_iter <<' '<<diff<<' '<<maxV<< std::endl;
+		error = maxV;
 		
 	}
 	solution=p;
-	error = diff;
-	getchar();
+	std::cout << num_iter << ' ' << error << std::endl;
+	//getchar();
 	return 0;
 }
 
