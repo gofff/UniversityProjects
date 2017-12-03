@@ -374,16 +374,64 @@ void DirichletProblem<VALTYPE>::SendBoundaries(const Grid<VALTYPE> & grid, const
 template <typename VALTYPE>
 void DirichletProblem<VALTYPE>::AgregateSolution()
 {
-	Grid<VALTYPE> generalSolution(nPointsX_nompi, nPointsY_nompi);
-	MPI_Request Req_mpi;
-	if (nProcIndex)
-	{
-		//MPI_Isend(solution.ptrData.get(), solution.nCols*solution.nRows, MPI_FLOAT, 0, 0, Comm_mpi, &Req_mpi);
-	}
-	else
-	{
+	//int nNumOfProc;
+	//MPI_Comm_size(Comm_mpi, &nNumOfProc);
+	//int pow2 = log2(nNumOfProc);
+	//int nProcRow = 1 << (pow2 / 2);
+	//int nProcCol = 1 << (pow2 / 2 + pow2 % 2);
+	//Grid<VALTYPE> generalSolution(nPointsX_nompi, nPointsY_nompi);
+	//generalSolution.Fill(BoundaryFunction, FILL_BOUNDARY, x0_nompi, y0_nompi, fStepX_nompi, fStepY_nompi);
+	//float * pDst = generalSolution.ptrData.get();
+	//float * pSrc = solution.ptrData.get();
+	//MPI_Request Req_mpi;
+	//for (int i = 0; i < nProcRow; ++i)
+	//{
+	//	if (!nProcIndex)
+	//	{
+	//		for (int y = 1; y < nPointsY - 1; ++y)
+	//		{
+	//			MPI_Gather((void*)(pSrc+y*nPointsX + 1), nPointsX - 2, MPI_FLOAT, pDst+ i*(nPointsX - 1)*(nPointsY - 1) + y*nPointsX + 1, nPointsX - 2, MPI_FLOAT, 0, Comm_mpi);
+	//			std::cout << " Success gathered " << nPointsX - 2 << " element to " << y+ i*(nPointsX - 1)*(nPointsY - 1) + y*nPointsX + 1 << " elem " << std::endl;
+	//			pSrc += nPointsX;
+	//			pDst += nPointsX;
+	//		}
+	//	}
+	//	else if (nProcIndex < (i+1)*nProcCol && nProcIndex >= i*nProcCol)
+	//	{
+	//		for (int y = 1; y < nPointsY - 1; ++y)
+	//		{
+	//			MPI_Gather((void*)(pSrc+y*nPointsX+1), nPointsX - 2, MPI_FLOAT, NULL, nPointsX - 2, MPI_FLOAT, 0, Comm_mpi);
+	//			std::cout <<nProcIndex<< " Send to gather " << nPointsX - 1 << " element from " << y*nPointsX + 1 << " row " << std::endl;
+	//			pSrc += nPointsX;
+	//		}
+	//	}
+	//	else
+	//	{
+	//		std::cout << i << ' ';
+	//		std::cout << nProcIndex << " continue" << std::endl;;
+	//		continue;
+	//	}
+	//	MPI_Barrier(Comm_mpi);
+	//}
 
+	std::cout << "Result" << std::endl;
+	for (int y = 1; y < nPointsY-1; ++y)
+	{
+		for (int x = 1; x < nPointsX-1; ++x)
+		{
+			std::cout << x0 + fStepX*x << ' ' << y0 + fStepY*y << ' ' << solution.ptrData.get()[y*nPointsX + x] << std::endl;
+		}
 	}
+	std::cout << std::endl << "Difference" << std::endl;
+	for (int y = 1; y < nPointsY-1; ++y)
+	{
+		for (int x = 1; x < nPointsX-1; ++x)
+		{
+			std::cout << x0 + fStepX*x << ' ' << y0 + fStepY*y <<' '
+				<< fabs(solution.ptrData.get()[y*nPointsX + x] - BoundaryFunction(x0 + fStepX*x, y0 + fStepY*y)) << std::endl;
+		}
+	}
+	
 }
 
 template <typename VALTYPE>
@@ -657,7 +705,8 @@ VALTYPE DirichletProblem<VALTYPE>::SolveMPI()
 	//			std::cout << nProcIndex << ' ' << num_iter << ' ' << diff << ' ' << maxV << std::endl;
 	//			Sig(Comm_mpi);
 	//		}
-			std::cout << nProcIndex << ' ' << num_iter << ' ' << diff << ' '<<maxV<< std::endl;
+			//std::cout << nProcIndex << ' ' << num_iter << ' ' << diff << ' '<<maxV<< std::endl;
+			error = maxV;
 			SendBoundaries(p, num_iter);
 			RefreshBoundaries(p, num_iter);
 
@@ -678,13 +727,27 @@ VALTYPE DirichletProblem<VALTYPE>::SolveMPI()
 			//	break;
 		}
 		solution = p;
-		error = diff;
-
-		std::cout << nProcIndex << " END" << std::endl;
+		//error = diff;
+		if (!nProcIndex)
+		{
+			std::cout << num_iter << ' ' << error << std::endl;
+		}
+		//std::cout << nProcIndex << " END" << std::endl;
 		//Iteration2()
 		//SendBoundaries();
 		//RefreshBoundaries();
-		AgregateSolution();
+		if (!nProcIndex)
+		{
+			AgregateSolution();
+			Sig(Comm_mpi);
+			Wait(Comm_mpi);
+		}
+		else
+		{
+			Wait(Comm_mpi);
+			AgregateSolution();
+			Sig(Comm_mpi);
+		}
 
 //	}
 	MPI_Finalize();
