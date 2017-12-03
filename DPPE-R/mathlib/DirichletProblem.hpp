@@ -142,8 +142,9 @@ void DirichletProblem<VALTYPE>::InitSubproblem_mpi()
 	
 	RememberGlobalProblemParameters();
 
-	int nProcRow = sqrt(nNumOfProc);
-	int nProcCol = nNumOfProc / nProcRow;
+	int pow2 = log2(nNumOfProc);
+	int nProcRow = 1<<(pow2/2);
+	int nProcCol = 1<<(pow2/2+pow2%2);
 	nPointsX = std::floor(VALTYPE(nPointsX) / nProcCol + 0.5);
 	nPointsY = std::floor(VALTYPE(nPointsY) / nProcRow + 0.5);
 	int nProcX = nProcIndex%nProcCol;
@@ -264,31 +265,31 @@ void DirichletProblem<VALTYPE>::RefreshBoundaries(Grid<VALTYPE> & grid, const ui
 		int nNumReq = 0;
 		if (Neighbors.TopNeighb != -1)
 		{
-			//std::cout << nProcIndex << " Try RECV from " << Neighbors.TopNeighb << std::endl;
+		//	std::cout << nProcIndex << " Try RECV from " << Neighbors.TopNeighb << std::endl;
 			MPI_Irecv(BBufer.ptrTop.get(), nPointsX, MPI_FLOAT, Neighbors.TopNeighb, nIterNum, Comm_mpi, &Req_mpi[nNumReq++]);
 		}
 		if (Neighbors.BotNeighb != -1)
 		{
-			//std::cout << nProcIndex << " Try RECV from " << Neighbors.BotNeighb << std::endl;
+		//	std::cout << nProcIndex << " Try RECV from " << Neighbors.BotNeighb << std::endl;
 			MPI_Irecv(BBufer.ptrBot.get(), nPointsX, MPI_FLOAT, Neighbors.BotNeighb, nIterNum, Comm_mpi, &Req_mpi[nNumReq++]);
 		}
 		if (Neighbors.LeftNeighb != -1)
 		{
-			//std::cout << nProcIndex << " Try RECV from " << Neighbors.LeftNeighb << std::endl;
+		//	std::cout << nProcIndex << " Try RECV from " << Neighbors.LeftNeighb << std::endl;
 			MPI_Irecv((void *)BBufer.ptrLeft.get(), nPointsY, MPI_FLOAT, Neighbors.LeftNeighb, nIterNum, Comm_mpi, &Req_mpi[nNumReq++]);
 		}
 		if (Neighbors.RightNeighb != -1)
 		{
-			//std::cout << nProcIndex << " Try RECV from " << Neighbors.RightNeighb << std::endl;
+		//	std::cout << nProcIndex << " Try RECV from " << Neighbors.RightNeighb << std::endl;
 			MPI_Irecv((void *)BBufer.ptrRight.get(), nPointsY, MPI_FLOAT, Neighbors.RightNeighb, nIterNum, Comm_mpi, &Req_mpi[nNumReq++]);
 		}
 		if (nNumReq)
 		{
 			MPI_Status Stat_mpi[4];
-			//std::cout << nProcIndex << " Try WAITALL" << std::endl;
+			//std::cout << nProcIndex << " Try WAITALL " <<nIterNum<< std::endl;
 			MPI_Waitall(nNumReq, Req_mpi, Stat_mpi);
 		}
-		//std::cout << nProcIndex << " Success WAITALL" << std::endl;
+		//std::cout << nProcIndex << " Success WAITALL " << nIterNum<< std::endl;
 	}
 	if (Neighbors.TopNeighb != -1 || !nIterNum)
 	{
@@ -341,7 +342,7 @@ void DirichletProblem<VALTYPE>::SendBoundaries(const Grid<VALTYPE> & grid, const
 		VALTYPE * pDst = SendBufer.ptrBot.get();
 		VALTYPE * pSrc = grid.ptrData.get();
 		memcpy(pDst, pSrc+ (grid.nRows - 3)*grid.nCols, SendBufer.nSizeX * sizeof(VALTYPE));
-		//std::cout << nProcIndex << " Try SEND to " << Neighbors.BotNeighb << std::endl;
+	//	std::cout << nProcIndex << " Try SEND to " << Neighbors.BotNeighb << std::endl;
 		MPI_Isend(pDst, SendBufer.nSizeX, MPI_FLOAT, Neighbors.BotNeighb, nIterNum, Comm_mpi, &Req_mpi);
 	}
 	if (Neighbors.LeftNeighb != -1)
@@ -353,7 +354,7 @@ void DirichletProblem<VALTYPE>::SendBoundaries(const Grid<VALTYPE> & grid, const
 			*pDst = pSrc[y*grid.nCols+2];
 			++pDst;
 		}
-		
+//		std::cout << nProcIndex << " Try SEND to " << Neighbors.LeftNeighb << std::endl;
 		MPI_Isend(SendBufer.ptrLeft.get(), SendBufer.nSizeY, MPI_FLOAT, Neighbors.LeftNeighb, nIterNum, Comm_mpi, &Req_mpi);
 	}
 	if (Neighbors.RightNeighb != -1)
@@ -365,7 +366,7 @@ void DirichletProblem<VALTYPE>::SendBoundaries(const Grid<VALTYPE> & grid, const
 			*pDst = pSrc[y*grid.nCols + grid.nCols - 3];
 			++pDst;
 		}
-		
+	//	std::cout << nProcIndex << " Try SEND to " << Neighbors.RightNeighb << std::endl;
 		MPI_Isend(SendBufer.ptrRight.get(), SendBufer.nSizeY, MPI_FLOAT, Neighbors.RightNeighb, nIterNum, Comm_mpi, &Req_mpi);
 	}
 }
@@ -414,35 +415,36 @@ VALTYPE DirichletProblem<VALTYPE>::SolveMPI()
 		r.Laplacian(p, fStepX, fStepY, fHalfStepX);
 		//r.dump("Lap(p)");
 		r -= F; //r_{1} = d(p) - F
-		if (!nProcIndex)
-		{
-			r.dump("R-F");
-			Sig(Comm_mpi);
-			Wait(Comm_mpi);
-		}
-		else
-		{
-			Wait(Comm_mpi);
-			r.dump("R-F");
-			Sig(Comm_mpi);
-		}
+	//	if (!nProcIndex)
+	//	{
+	//		r.dump("R-F");
+	//		Sig(Comm_mpi);
+	//		Wait(Comm_mpi);
+	//	}
+	//	else
+	//	{
+	//		Wait(Comm_mpi);
+	//		r.dump("R-F");
+	//		Sig(Comm_mpi);
+	//	}
 		//r.dump("Lap(p)-F");
 		g_1 = r; //запомнили для следующей итерации g_{1}
+		MPI_Barrier(Comm_mpi);
 		SendBoundaries(r, 1);
 		RefreshBoundaries(r, 1);
 		rLap.Laplacian(r, fStepX, fStepY, fHalfStepX);// d(r_{1})
-		if (!nProcIndex)
-		{
-			rLap.dump("RLap");
-			Sig(Comm_mpi);
-			Wait(Comm_mpi);
-		}
-		else
-		{
-			Wait(Comm_mpi);
-			rLap.dump("RLap");
-			Sig(Comm_mpi);
-		}
+	//	if (!nProcIndex)
+	//	{
+	//		rLap.dump("RLap");
+	//		Sig(Comm_mpi);
+	//		Wait(Comm_mpi);
+	//	}
+	//	else
+	//	{
+	//		Wait(Comm_mpi);
+	//		rLap.dump("RLap");
+	//		Sig(Comm_mpi);
+	//	}
 		//rLap.dump("Lap(Lap(p)-F)");
 		//tau = DotProduct(r, r, k) / DotProduct(rLap, r, k);
 		VALTYPE GlobalTau = 0;
@@ -461,23 +463,28 @@ VALTYPE DirichletProblem<VALTYPE>::SolveMPI()
 		//std::cout <<"tau= "<< tau << std::endl;
 		r *= tau;
 		//r.dump("r*tau");
-		diff = r.MaxNormDifference(); // |p_{1} - p_{0}| = tau*r
+		//diff = r.MaxNormDifference(); // |p_{1} - p_{0}| = tau*r
+		float GlobalDiff = 0;
+		float LocalDiff = r.MaxNormDifference();
+		MPI_Allreduce(&LocalDiff, &GlobalDiff, 1, MPI_FLOAT, MPI_MAX, Comm_mpi);
+		diff = GlobalDiff;
 		p -= r;
 		
-		if (!nProcIndex)
-		{
-			p.dump("PBeforeSend");
-			Sig(Comm_mpi);
-			Wait(Comm_mpi);
-		}
-		else
-		{
-			Wait(Comm_mpi);
-			p.dump("PBeforeSend");
-			Sig(Comm_mpi);
-		}
+//		if (!nProcIndex)
+//		{
+//			p.dump("PBeforeSend");
+//			Sig(Comm_mpi);
+//			Wait(Comm_mpi);
+//		}
+//		else
+//		{
+//			Wait(Comm_mpi);
+//			p.dump("PBeforeSend");
+//			Sig(Comm_mpi);
+//		}
 		
 		num_iter = 1;
+		MPI_Barrier(Comm_mpi);
 		SendBoundaries(p, 1);
 		RefreshBoundaries(p, 1);
 		//other iterations
@@ -486,66 +493,67 @@ VALTYPE DirichletProblem<VALTYPE>::SolveMPI()
 			//std::cout << "Iteration: " << num_iter << std::endl;
 			++num_iter;
 			
-			if (!nProcIndex)
-			{
-				p.dump("PAfterSend");
-				Sig(Comm_mpi);
-				Wait(Comm_mpi);
-			}
-			else
-			{
-				Wait(Comm_mpi);
-				p.dump("PAfterSend");
-				Sig(Comm_mpi);
-			}
+		//	if (!nProcIndex)
+		//	{
+		//		p.dump("PAfterSend");
+		//		Sig(Comm_mpi);
+		//		Wait(Comm_mpi);
+		//	}
+		//	else
+		//	{
+		//		Wait(Comm_mpi);
+		//		p.dump("PAfterSend");
+		//		Sig(Comm_mpi);
+		//	}
 			
 			r.Laplacian(p, fStepX, fStepY, fHalfStepX);
 			//r.dump("Lap(r)");
 			r -= F; // r_{k}
-			SendBoundaries(r, 1);
-			RefreshBoundaries(r, 1);
-			if (!nProcIndex)
-			{
-				r.dump("r-=F");
-				Sig(Comm_mpi);
-				Wait(Comm_mpi);
-			}
-			else
-			{
-				Wait(Comm_mpi);
-				r.dump("r-=F");
-				Sig(Comm_mpi);
-			}
+			MPI_Barrier(Comm_mpi);
+			SendBoundaries(r, num_iter+1);
+			RefreshBoundaries(r, num_iter+1);
+	//		if (!nProcIndex)
+	//		{
+	//			r.dump("r-=F");
+	//			Sig(Comm_mpi);
+	//			Wait(Comm_mpi);
+	//		}
+	//		else
+	//		{
+	//			Wait(Comm_mpi);
+	//			r.dump("r-=F");
+	//			Sig(Comm_mpi);
+	//		}
 			//r.dump("-F");
 			rLap.Laplacian(r, fStepX, fStepY, fHalfStepX);
-			if (!nProcIndex)
-			{
-				rLap.dump("rLap");
-				Sig(Comm_mpi);
-				Wait(Comm_mpi);
-			}
-			else
-			{
-				Wait(Comm_mpi);
-				rLap.dump("rLap");
-				Sig(Comm_mpi);
-			}
+		//	if (!nProcIndex)
+		//	{
+		//		rLap.dump("rLap");
+		//		Sig(Comm_mpi);
+		//		Wait(Comm_mpi);
+		//	}
+		//	else
+		//	{
+		//		Wait(Comm_mpi);
+		//		rLap.dump("rLap");
+		//		Sig(Comm_mpi);
+		//	}
 			//rLap.dump("Lap(Lap(r))");
-			SendBoundaries(g_1, 1);
-			RefreshBoundaries(g_1, 1);
+			SendBoundaries(g_1, num_iter);
+			RefreshBoundaries(g_1, num_iter);
 			gLap.Laplacian(g_1, fStepX, fStepY, fHalfStepX);
-			if (!nProcIndex)
-			{
-				gLap.dump("gLap");
-				Sig(Comm_mpi);
-				Wait(Comm_mpi);
-			}
-			else
-			{
-				Wait(Comm_mpi);
-				gLap.dump("gLap");
-				Sig(Comm_mpi);
-			}
+	//		if (!nProcIndex)
+	//		{
+	//			gLap.dump("gLap");
+	//			Sig(Comm_mpi);
+	//			Wait(Comm_mpi);
+	//		}
+	//		else
+	//		{
+	//			Wait(Comm_mpi);
+	//			gLap.dump("gLap");
+	//			Sig(Comm_mpi);
+	//		}
 			//gLap.dump("gLap");
 			//if (memcmp(rLap.ptrData.get(), gLap.ptrData.get(), gLap.nCols*gLap.nRows * sizeof(VALTYPE)))
 			//{
@@ -573,8 +581,8 @@ VALTYPE DirichletProblem<VALTYPE>::SolveMPI()
 			g -= g_1; //g_{k}=r_{k}-alpha*g_{k-1}
 		//	g.dump("g_{k}=r_{k}-alpha*g_{k-1}");
 			g_1 = g; //запомнили
-			SendBoundaries(g, 1);
-			RefreshBoundaries(g, 1);
+			SendBoundaries(g, num_iter);
+			RefreshBoundaries(g, num_iter);
 			gLap.Laplacian(g, fStepX, fStepY, fHalfStepX);
 		//	gLap.dump("Lap(g)");
 			//if (memcmp(gLap.ptrData.get(), g.ptrData.get(), g.nCols*g.nRows * sizeof(VALTYPE)))
@@ -605,18 +613,18 @@ VALTYPE DirichletProblem<VALTYPE>::SolveMPI()
 			diff = GlobalDiff;
 			p -= g; // p_{k+1} = p_{k} - alpha*g_{k}
 			
-			if (!nProcIndex)
-			{
-				p.dump("PBefore");
-				Sig(Comm_mpi);
-				Wait(Comm_mpi);
-			}
-			else
-			{
-				Wait(Comm_mpi);
-				p.dump("PBefore");
-				Sig(Comm_mpi);
-			}
+	//		if (!nProcIndex)
+	//		{
+	//			p.dump("PBefore");
+	//			Sig(Comm_mpi);
+	//			Wait(Comm_mpi);
+	//		}
+	//		else
+	//		{
+	//			Wait(Comm_mpi);
+	//			p.dump("PBefore");
+	//			Sig(Comm_mpi);
+	//		}
 			
 			///////////////////////////////////////
 			float maxV = -std::numeric_limits<VALTYPE>::min();
@@ -637,35 +645,35 @@ VALTYPE DirichletProblem<VALTYPE>::SolveMPI()
 			MPI_Allreduce(&LocalErr, &GlobalErr, 1, MPI_FLOAT, MPI_MAX, Comm_mpi);
 			maxV = GlobalErr;
 			//////////////////////////////////
-			if (!nProcIndex)
-			{
-				std::cout << nProcIndex << ' ' << num_iter << ' ' << diff << ' ' << maxV << std::endl;
-				Sig(Comm_mpi);
-				Wait(Comm_mpi);
-			}
-			else
-			{
-				Wait(Comm_mpi);
-				std::cout << nProcIndex << ' ' << num_iter << ' ' << diff << ' ' << maxV << std::endl;
-				Sig(Comm_mpi);
-			}
-			//std::cout << nProcIndex << ' ' << num_iter << ' ' << diff << ' '<<maxV<< std::endl;
+	//		if (!nProcIndex)
+	//		{
+	//			std::cout << nProcIndex << ' ' << num_iter << ' ' << diff << ' ' << maxV << std::endl;
+	//			Sig(Comm_mpi);
+	//			Wait(Comm_mpi);
+	//		}
+	//		else
+	//		{
+	//			Wait(Comm_mpi);
+	//			std::cout << nProcIndex << ' ' << num_iter << ' ' << diff << ' ' << maxV << std::endl;
+	//			Sig(Comm_mpi);
+	//		}
+			std::cout << nProcIndex << ' ' << num_iter << ' ' << diff << ' '<<maxV<< std::endl;
 			SendBoundaries(p, num_iter);
 			RefreshBoundaries(p, num_iter);
 
-			if (!nProcIndex)
-			{
-				p.dump("PAfter");
-				Sig(Comm_mpi);
-				Wait(Comm_mpi);
-			}
-			else
-			{
-				Wait(Comm_mpi);
-				p.dump("PAfter");
-				Sig(Comm_mpi);
-			}
-			Sig(Comm_mpi);
+	//		if (!nProcIndex)
+	//		{
+	//			p.dump("PAfter");
+	//			Sig(Comm_mpi);
+	//			Wait(Comm_mpi);
+	//		}
+	//		else
+	//		{
+	//			Wait(Comm_mpi);
+	//			p.dump("PAfter");
+	//			Sig(Comm_mpi);
+	//		}
+	//		Sig(Comm_mpi);
 			//if (num_iter == 3)
 			//	break;
 		}
