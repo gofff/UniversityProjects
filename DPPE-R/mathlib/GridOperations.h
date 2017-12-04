@@ -10,7 +10,7 @@
 #include <iomanip>
 
 //#define LOG
-#define OMP
+//#define OMP
 
 
 enum FillTypes {FILL_ALL, FILL_BOUNDARY};
