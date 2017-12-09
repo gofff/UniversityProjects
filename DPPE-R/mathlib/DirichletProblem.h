@@ -1,32 +1,9 @@
 #ifndef DIRICHLET_PROBLEM_H
 #define DIRICHLET_PROBLEM_H
 
-#include <iostream>
-#include <cstdint>
-#include <functional>
 #include "GridOperations.h"
-#include "mpi.h"
 #include<iostream>
 #include <iomanip>
-
-template<typename VALTYPE>
-struct BoundaryBuffer
-{
-	int nSizeX;
-	int nSizeY;
-	std::shared_ptr<VALTYPE> ptrTop;
-	std::shared_ptr<VALTYPE> ptrBot;
-	std::shared_ptr<VALTYPE> ptrLeft;
-	std::shared_ptr<VALTYPE> ptrRight;
-};
-
-struct ProcessorNeighborhood
-{
-	int TopNeighb;
-	int BotNeighb;
-	int LeftNeighb;
-	int RightNeighb;
-};
 
 template <typename VALTYPE>
 class DirichletProblem
@@ -44,20 +21,23 @@ public:
 		, y1(1)
 		, eps(1e-6)
 	{}
-
+#ifdef std11
 	DirichletProblem(const VALTYPE x0_, const VALTYPE y0_,
 		const VALTYPE x1_, const VALTYPE y1_,
 		const uint32_t nPointsX_, const uint32_t nPointsY_,
 		const std::function<VALTYPE(const VALTYPE, const VALTYPE)> BoundaryFunc_,
 		const std::function<VALTYPE(const VALTYPE, const VALTYPE)> AppFunc_);
-
+#else
+	DirichletProblem(const VALTYPE x0_, const VALTYPE y0_,
+		const VALTYPE x1_, const VALTYPE y1_,
+		const uint32_t nPointsX_, const uint32_t nPointsY_,
+		VALTYPE (* BoundaryFunc_)(const VALTYPE, const VALTYPE),
+		VALTYPE (* AppFunc_)(const VALTYPE, const VALTYPE));
+#endif
 	VALTYPE Solve();
 	VALTYPE SolveMPI();
 	void InitSubproblem_mpi();
-	void RefreshBoundaries(Grid<VALTYPE> & grid, const uint32_t nIterNum);
-	void SendBoundaries(const Grid<VALTYPE> & grid, const uint32_t nIterNum);
 	void AgregateSolution();
-	void RememberGlobalProblemParameters();
 
 	void SetPrecision(const VALTYPE eps_) { eps = eps_;}
 	void PrintSolution()
@@ -122,18 +102,25 @@ private:
 	VALTYPE fAvStepX_nompi;
 	VALTYPE fAvStepY_nompi;
 	VALTYPE eps;
+#ifdef std11
 	std::function<VALTYPE(const VALTYPE, const VALTYPE)> BoundaryFunction;
 	std::function<VALTYPE(const VALTYPE, const VALTYPE)> AppFunction;
+#else
+	VALTYPE(*BoundaryFunction)(const VALTYPE, const VALTYPE);
+	VALTYPE(*AppFunction)(const VALTYPE, const VALTYPE);
+#endif
 	Grid<VALTYPE> solution;
+	//GridMPI<VALTYPE> solutionMPI;
 	uint32_t num_iter;
 	VALTYPE error;
-
+	/*
 	BoundaryBuffer<VALTYPE> BBufer;
 	BoundaryBuffer<VALTYPE> SendBufer;
 	ProcessorNeighborhood Neighbors;
-
+	*/
 	MPI_Comm Comm_mpi;
 	int nProcIndex;
+	int nNumProc;
 };
 
 

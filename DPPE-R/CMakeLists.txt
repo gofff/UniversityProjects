@@ -9,7 +9,7 @@ set(CMAKE_CXX_FLAGS "-fopenmp -std=c++0x -O3")
 
 find_package(MPI REQUIRED)
 
-#FIND_PACKAGE(OpenMP REQUIRED)
+FIND_PACKAGE(OpenMP REQUIRED)
 
 set(MAIN_SOURCES "src/main.cpp")
 

@@ -1,4 +1,4 @@
-
+#ifdef std11
 template <typename VALTYPE>
 DirichletProblem<VALTYPE>::DirichletProblem(const VALTYPE x0_, const VALTYPE y0_,
 								const VALTYPE x1_, const VALTYPE y1_,
@@ -16,10 +16,33 @@ DirichletProblem<VALTYPE>::DirichletProblem(const VALTYPE x0_, const VALTYPE y0_
 	fStepX = (x1 - x0) / (nPointsX - 1);
 	fStepY = (y1 - y0) / (nPointsY - 1);
 	fHalfStepX = fStepX;
+	fHalfStepY = fStepY;
 	BoundaryFunction = BoundaryFunc_;
 	AppFunction = AppFunc_;
 }
-
+#else
+template <typename VALTYPE>
+DirichletProblem<VALTYPE>::DirichletProblem(const VALTYPE x0_, const VALTYPE y0_,
+	const VALTYPE x1_, const VALTYPE y1_,
+	const uint32_t nPointsX_, const uint32_t nPointsY_,
+	VALTYPE(*BoundaryFunc_)(const VALTYPE, const VALTYPE),
+	VALTYPE(*AppFunc_)(const VALTYPE, const VALTYPE))
+	: x0(x0_)
+	, x1(x1_)
+	, y0(y0_)
+	, y1(y1_)
+	, nPointsY(nPointsY_)
+	, nPointsX(nPointsX_)
+	, eps(1e-6)
+{
+	fStepX = (x1 - x0) / (nPointsX - 1);
+	fStepY = (y1 - y0) / (nPointsY - 1);
+	fHalfStepX = fStepX;
+	fHalfStepY = fStepY;
+	BoundaryFunction = BoundaryFunc_;
+	AppFunction = AppFunc_;
+}
+#endif
 
 //#define IT_LOG
 template <typename VALTYPE>
@@ -40,17 +63,19 @@ VALTYPE DirichletProblem<VALTYPE>::Solve()
 	VALTYPE tau = 0;
 	VALTYPE alpha = 0;
 	VALTYPE diff = 0;
-	VALTYPE k = fStepX*fStepY; //to dot product
+	VALTYPE k = fHalfStepX*fHalfStepY; //to dot product
 
 	//first iteration
-	r.Laplacian(p,fStepX, fStepY, fHalfStepX);
+	r.Laplacian(p,fStepX, fStepY, fHalfStepX,fHalfStepY);
 	r.dump("Lap(p)");
 	r -= F; //r_{1} = d(p) - F
 	r.dump("Lap(p)-F");
+
 	g_1 = r; //запомнили для следующей итерации g_{1}
-	rLap.Laplacian(r, fStepX, fStepY, fHalfStepX);// d(r_{1})
+	rLap.Laplacian(r, fStepX, fStepY, fHalfStepX, fHalfStepY);// d(r_{1})
 	rLap.dump("Lap(Lap(p)-F)");
 	tau = DotProduct(r, r, k) / DotProduct(rLap, r, k); 
+	//std::cout << DotProduct(r, r, k)<<' '<< DotProduct(rLap, r, k)<<' '<< tau << std::endl;
 	r *= tau; 
 	r.dump("r*tau");
 	diff = r.MaxNormDifference(); // |p_{1} - p_{0}| = tau*r
@@ -63,15 +88,15 @@ VALTYPE DirichletProblem<VALTYPE>::Solve()
 	{
 		//std::cout << "Iteration: " << num_iter << std::endl;
 		++num_iter;
-		r.Laplacian(p, fStepX,fStepY, fHalfStepX);
+		r.Laplacian(p, fStepX,fStepY, fHalfStepX, fHalfStepY);
 		r.dump("Lap(r)");
 		r -= F; // r_{k}
 		r.dump("-F");
-		rLap.Laplacian(r, fStepX, fStepY, fHalfStepX);
+		rLap.Laplacian(r, fStepX, fStepY, fHalfStepX, fHalfStepY);
 		rLap.dump("Lap(Lap(r))");
-		gLap.Laplacian(g_1, fStepX, fStepY, fHalfStepX);
+		gLap.Laplacian(g_1, fStepX, fStepY, fHalfStepX, fHalfStepY);
 		gLap.dump("gLap");
-		if (memcmp(rLap.ptrData.get(), gLap.ptrData.get(), gLap.nCols*gLap.nRows * sizeof(VALTYPE)))
+		if (memcmp(rLap.ptrData, gLap.ptrData, gLap.nCols*gLap.nRows * sizeof(VALTYPE)))
 		{
 			alpha = DotProduct(rLap, g_1, k) / DotProduct(gLap, g_1, k);
 		}
@@ -86,9 +111,9 @@ VALTYPE DirichletProblem<VALTYPE>::Solve()
 		g -= g_1; //g_{k}=r_{k}-alpha*g_{k-1}
 		g.dump("g_{k}=r_{k}-alpha*g_{k-1}");
 		g_1 = g; //запомнили
-		gLap.Laplacian(g, fStepX, fStepY, fHalfStepX);
+		gLap.Laplacian(g, fStepX, fStepY, fHalfStepX, fHalfStepY);
 		gLap.dump("Lap(g)");
-		if (memcmp(gLap.ptrData.get(), g.ptrData.get(), g.nCols*g.nRows * sizeof(VALTYPE)))
+		if (memcmp(gLap.ptrData, g.ptrData, g.nCols*g.nRows * sizeof(VALTYPE)))
 		{
 			tau = DotProduct(r, g, k) / DotProduct(gLap, g, k);
 		}
@@ -96,6 +121,7 @@ VALTYPE DirichletProblem<VALTYPE>::Solve()
 		{
 			tau = 0.0;
 		}
+		//std::cout << tau << std::endl;
 		g *= tau; 
 		g.dump("g*tau");
 
@@ -104,7 +130,7 @@ VALTYPE DirichletProblem<VALTYPE>::Solve()
 		p.dump("p");
 		/////////////////////////////////
 		float maxV = -std::numeric_limits<VALTYPE>::min();
-		VALTYPE * data = p.ptrData.get();
+		VALTYPE * data = p.ptrData;
 		for (int i = 1; i < p.nRows - 1; ++i)
 		{
 			for (int j = 1; j < p.nCols - 1; ++j)
@@ -122,6 +148,7 @@ VALTYPE DirichletProblem<VALTYPE>::Solve()
 		
 	}
 	solution=p;
+	//AgregateSolution();
 	std::cout << num_iter << ' ' << error << std::endl;
 	//getchar();
 	return 0;
@@ -131,242 +158,47 @@ template <typename VALTYPE>
 void DirichletProblem<VALTYPE>::InitSubproblem_mpi()
 {
 	// Get the number of processes
-	int nNumOfProc;
-	MPI_Comm_size(Comm_mpi, &nNumOfProc);
-
+	MPI_Comm_size(Comm_mpi, &nNumProc);
 	// Get the rank of the process
 	MPI_Comm_rank(Comm_mpi, &nProcIndex);
-	
-	RememberGlobalProblemParameters();
 
-	int pow2 = log2(nNumOfProc);
+	int pow2 = log2(nNumProc);
 	int nProcRow = 1<<(pow2/2);
 	int nProcCol = 1<<(pow2/2+pow2%2);
 	nPointsX = std::floor(VALTYPE(nPointsX) / nProcCol + 0.5);
 	nPointsY = std::floor(VALTYPE(nPointsY) / nProcRow + 0.5);
 	int nProcX = nProcIndex%nProcCol;
 	int nProcY = nProcIndex/nProcCol;
-	VALTYPE segLenX = (x1 - x0) / nProcCol;
-	VALTYPE segLenY = VALTYPE(y1 - y0) / nProcRow;
-	x0 = segLenX*nProcX;
+	//VALTYPE segLenX = (x1 - x0) / nProcCol;
+	//VALTYPE segLenY = VALTYPE(y1 - y0) / nProcRow;
+	VALTYPE segLenX = fStepX * (nPointsX-1);
+	VALTYPE segLenY = fStepY * (nPointsY-1);
+	x0 = (segLenX+fStepX)*nProcX;
 	x1 = x0 + segLenX;
-	y0 = segLenY*nProcY;
+	y0 = (segLenY+fStepY)*nProcY;
 	y1 = y0 + segLenY;
-	fStepX = (x1 - x0) / (nPointsX-1);
-	fStepY = (y1 - y0) / (nPointsY-1);
+	//fStepX = (x1 - x0) / (nPointsX-1);
+	//fStepY = (y1 - y0) / (nPointsY-1);
 	
 	
-	Neighbors.TopNeighb = nProcY != 0 ? nProcIndex-nProcCol : -1;
-	Neighbors.BotNeighb = nProcY != nProcRow-1 ? nProcIndex + nProcCol : -1;
-	Neighbors.LeftNeighb = nProcX != 0 ? nProcIndex - 1 : -1;
-	Neighbors.RightNeighb = nProcX != nProcCol - 1 ? nProcIndex + 1 : -1;
-	//std::cout << nProcIndex <<" as "<<nProcY<<' '<<nProcX<<" Has Neighbours " << Neighbors.TopNeighb << ' '
-	//	<< Neighbors.BotNeighb << ' ' << Neighbors.LeftNeighb << ' ' << Neighbors.RightNeighb << std::endl;
+	bool bHasTopNeighb = nProcY != 0;
+	bool bHasBotNeighb = nProcY != nProcRow-1;
+	bool bHasLeftNeighb = nProcX != 0;
+	bool bHasRightNeighb = nProcX != nProcCol - 1;
 
-	y0 -= Neighbors.TopNeighb != -1 ? fStepY : 0;
-	nPointsY += Neighbors.TopNeighb != -1 ? 1 : 0;
-
-	y1 -= Neighbors.BotNeighb != -1 ? fStepY : 0;
-	nPointsY += Neighbors.BotNeighb != -1 ? 1 : 0;
-
-	x0 -= Neighbors.LeftNeighb != -1 ? fStepY : 0;
-	nPointsX += Neighbors.LeftNeighb != -1 ? 1 : 0;
-
-	x1 -= Neighbors.RightNeighb != -1 ? fStepY : 0;
-	nPointsX += Neighbors.RightNeighb != -1 ? 1 : 0;
-
-	BBufer.nSizeX = nPointsX;
-	BBufer.nSizeY = nPointsY;
-	BBufer.ptrTop = std::shared_ptr<VALTYPE>(new VALTYPE[BBufer.nSizeX * sizeof(VALTYPE)]);
-	memset(BBufer.ptrTop.get(), VALTYPE(0), BBufer.nSizeX * sizeof(VALTYPE));
-	BBufer.ptrBot = std::shared_ptr<VALTYPE>(new VALTYPE[BBufer.nSizeX * sizeof(VALTYPE)]);
-	memset(BBufer.ptrBot.get(), VALTYPE(0), BBufer.nSizeX * sizeof(VALTYPE));
-	BBufer.ptrLeft = std::shared_ptr<VALTYPE>(new VALTYPE[BBufer.nSizeY * sizeof(VALTYPE)]);
-	memset(BBufer.ptrLeft.get(), VALTYPE(0), BBufer.nSizeY * sizeof(VALTYPE));
-	BBufer.ptrRight = std::shared_ptr<VALTYPE>(new VALTYPE[BBufer.nSizeY * sizeof(VALTYPE)]);
-	memset(BBufer.ptrRight.get(), VALTYPE(0), BBufer.nSizeY * sizeof(VALTYPE));
-
-	SendBufer.nSizeX = nPointsX;
-	SendBufer.nSizeY = nPointsY;
-	SendBufer.ptrTop = std::shared_ptr<VALTYPE>(new VALTYPE[SendBufer.nSizeX * sizeof(VALTYPE)]);
-	memset(SendBufer.ptrTop.get(), VALTYPE(0), SendBufer.nSizeX * sizeof(VALTYPE));
-	SendBufer.ptrBot = std::shared_ptr<VALTYPE>(new VALTYPE[SendBufer.nSizeX * sizeof(VALTYPE)]);
-	memset(SendBufer.ptrBot.get(), VALTYPE(0), SendBufer.nSizeX * sizeof(VALTYPE));
-	SendBufer.ptrLeft = std::shared_ptr<VALTYPE>(new VALTYPE[SendBufer.nSizeY * sizeof(VALTYPE)]);
-	memset(SendBufer.ptrLeft.get(), VALTYPE(0), SendBufer.nSizeY * sizeof(VALTYPE));
-	SendBufer.ptrRight = std::shared_ptr<VALTYPE>(new VALTYPE[SendBufer.nSizeY * sizeof(VALTYPE)]);
-	memset(SendBufer.ptrRight.get(), VALTYPE(0), SendBufer.nSizeY * sizeof(VALTYPE));
-
-	if (Neighbors.TopNeighb == -1)
-	{
-		VALTYPE * ptrData = BBufer.ptrTop.get();
-		for (int x = 0; x < BBufer.nSizeX; ++x)
-		{
-			*ptrData = BoundaryFunction(x0 + x*fStepX, y0);
-			++ptrData;
-		}
-	}
-	if (Neighbors.BotNeighb == -1)
-	{
-		VALTYPE * ptrData = BBufer.ptrBot.get();
-		for (int x = 0; x < BBufer.nSizeX; ++x)
-		{
-			*ptrData = BoundaryFunction(x0 + x*fStepX, y1);
-			++ptrData;
-		}
-	}
-	if (Neighbors.LeftNeighb == -1)
-	{
-		VALTYPE * ptrData = BBufer.ptrLeft.get();
-		for (int y = 0; y < BBufer.nSizeY; ++y)
-		{
-			*ptrData = BoundaryFunction(x0, y0+y*fStepY);
-			++ptrData;
-		}
-	}
-
-	if (Neighbors.RightNeighb == -1)
-	{
-		VALTYPE * ptrData = BBufer.ptrRight.get();
-		for (int y = 0; y < BBufer.nSizeY; ++y)
-		{
-			*ptrData = BoundaryFunction(x1, y0 + y*fStepY);
-			++ptrData;
-		}
-	}
-	fAvStepX = fStepX;
-	fAvStepY = fStepY;
+	y0 -= bHasTopNeighb ? fStepY : 0;
+	nPointsY += bHasTopNeighb ? 1 : 0;
+	y1 += bHasBotNeighb ? fStepY : 0;
+	nPointsY += bHasBotNeighb ? 1 : 0;
+	x0 -= bHasLeftNeighb ? fStepY : 0;
+	nPointsX += bHasLeftNeighb ? 1 : 0;
+	x1 += bHasRightNeighb ? fStepY : 0;
+	nPointsX += bHasRightNeighb ? 1 : 0;
+	
+	fHalfStepX = fStepX;
+	fHalfStepY = fStepY;
 }
 
-template <typename VALTYPE>
-void DirichletProblem<VALTYPE>::RememberGlobalProblemParameters()
-{
-	nPointsX_nompi = nPointsX;
-	nPointsY_nompi = nPointsY;
-	x0_nompi = x0;
-	x1_nompi = x1;
-	y0_nompi = y0;
-	y1_nompi = y1;
-	fStepX_nompi = fStepX;
-	fStepY_nompi = fStepY;
-	fAvStepX_nompi = fAvStepX;
-	fAvStepY_nompi = fAvStepY;
-}
-
-template <typename VALTYPE>
-void DirichletProblem<VALTYPE>::RefreshBoundaries(Grid<VALTYPE> & grid, const uint32_t nIterNum)
-{
-	if (nIterNum)
-	{
-		MPI_Request Req_mpi[4];
-		int nNumReq = 0;
-		if (Neighbors.TopNeighb != -1)
-		{
-		//	std::cout << nProcIndex << " Try RECV from " << Neighbors.TopNeighb << std::endl;
-			MPI_Irecv(BBufer.ptrTop.get(), nPointsX, MPI_FLOAT, Neighbors.TopNeighb, nIterNum, Comm_mpi, &Req_mpi[nNumReq++]);
-		}
-		if (Neighbors.BotNeighb != -1)
-		{
-		//	std::cout << nProcIndex << " Try RECV from " << Neighbors.BotNeighb << std::endl;
-			MPI_Irecv(BBufer.ptrBot.get(), nPointsX, MPI_FLOAT, Neighbors.BotNeighb, nIterNum, Comm_mpi, &Req_mpi[nNumReq++]);
-		}
-		if (Neighbors.LeftNeighb != -1)
-		{
-		//	std::cout << nProcIndex << " Try RECV from " << Neighbors.LeftNeighb << std::endl;
-			MPI_Irecv((void *)BBufer.ptrLeft.get(), nPointsY, MPI_FLOAT, Neighbors.LeftNeighb, nIterNum, Comm_mpi, &Req_mpi[nNumReq++]);
-		}
-		if (Neighbors.RightNeighb != -1)
-		{
-		//	std::cout << nProcIndex << " Try RECV from " << Neighbors.RightNeighb << std::endl;
-			MPI_Irecv((void *)BBufer.ptrRight.get(), nPointsY, MPI_FLOAT, Neighbors.RightNeighb, nIterNum, Comm_mpi, &Req_mpi[nNumReq++]);
-		}
-		if (nNumReq)
-		{
-			MPI_Status Stat_mpi[4];
-			//std::cout << nProcIndex << " Try WAITALL " <<nIterNum<< std::endl;
-			MPI_Waitall(nNumReq, Req_mpi, Stat_mpi);
-		}
-		//std::cout << nProcIndex << " Success WAITALL " << nIterNum<< std::endl;
-	}
-	if (Neighbors.TopNeighb != -1 || !nIterNum)
-	{
-		VALTYPE * pSrc = BBufer.ptrTop.get();
-		VALTYPE * pDst = grid.ptrData.get();
-		memcpy(pDst, pSrc, BBufer.nSizeX * sizeof(VALTYPE));
-	}
-	if (Neighbors.BotNeighb != -1 || !nIterNum)
-	{
-		VALTYPE * pSrc = BBufer.ptrBot.get();
-		VALTYPE * pDst = grid.ptrData.get();
-		memcpy(pDst+(grid.nRows-1)*grid.nCols, pSrc, BBufer.nSizeX * sizeof(VALTYPE));
-	}
-	if (Neighbors.LeftNeighb != -1 || !nIterNum)
-	{
-		VALTYPE * pSrc = BBufer.ptrLeft.get();
-		VALTYPE * pDst = grid.ptrData.get();
-		for (int y = 0; y < BBufer.nSizeY; ++y)
-		{
-			pDst[(y)*grid.nCols] = *pSrc;
-			++pSrc;
-		}
-	}
-	if (Neighbors.RightNeighb != -1 || !nIterNum)
-	{
-		VALTYPE * pSrc = BBufer.ptrRight.get();
-		VALTYPE * pDst = grid.ptrData.get();
-		for (int y = 0; y < BBufer.nSizeY; ++y)
-		{
-			pDst[(y)*grid.nCols+grid.nCols-1] = *pSrc;
-			++pSrc;
-		}
-	}
-}
-
-template <typename VALTYPE>
-void DirichletProblem<VALTYPE>::SendBoundaries(const Grid<VALTYPE> & grid, const uint32_t nIterNum)
-{
-	MPI_Request Req_mpi;
-	if (Neighbors.TopNeighb != -1)
-	{
-		VALTYPE * pDst = SendBufer.ptrTop.get();
-		VALTYPE * pSrc = grid.ptrData.get();
-		memcpy(pDst, pSrc+2*grid.nCols, SendBufer.nSizeX * sizeof(VALTYPE));
-		//std::cout << nProcIndex << " Try SEND to " << Neighbors.TopNeighb << std::endl;
-		MPI_Isend(pDst, SendBufer.nSizeX, MPI_FLOAT, Neighbors.TopNeighb, nIterNum, Comm_mpi, &Req_mpi);
-	}
-	if (Neighbors.BotNeighb != -1)
-	{
-		VALTYPE * pDst = SendBufer.ptrBot.get();
-		VALTYPE * pSrc = grid.ptrData.get();
-		memcpy(pDst, pSrc+ (grid.nRows - 3)*grid.nCols, SendBufer.nSizeX * sizeof(VALTYPE));
-	//	std::cout << nProcIndex << " Try SEND to " << Neighbors.BotNeighb << std::endl;
-		MPI_Isend(pDst, SendBufer.nSizeX, MPI_FLOAT, Neighbors.BotNeighb, nIterNum, Comm_mpi, &Req_mpi);
-	}
-	if (Neighbors.LeftNeighb != -1)
-	{
-		VALTYPE * pDst = SendBufer.ptrLeft.get();
-		VALTYPE * pSrc = grid.ptrData.get();
-		for (int y = 0; y < SendBufer.nSizeY; ++y)
-		{
-			*pDst = pSrc[y*grid.nCols+2];
-			++pDst;
-		}
-//		std::cout << nProcIndex << " Try SEND to " << Neighbors.LeftNeighb << std::endl;
-		MPI_Isend(SendBufer.ptrLeft.get(), SendBufer.nSizeY, MPI_FLOAT, Neighbors.LeftNeighb, nIterNum, Comm_mpi, &Req_mpi);
-	}
-	if (Neighbors.RightNeighb != -1)
-	{
-		VALTYPE * pDst = SendBufer.ptrRight.get();
-		VALTYPE * pSrc = grid.ptrData.get();
-		for (int y = 0; y < SendBufer.nSizeY; ++y)
-		{
-			*pDst = pSrc[y*grid.nCols + grid.nCols - 3];
-			++pDst;
-		}
-	//	std::cout << nProcIndex << " Try SEND to " << Neighbors.RightNeighb << std::endl;
-		MPI_Isend(SendBufer.ptrRight.get(), SendBufer.nSizeY, MPI_FLOAT, Neighbors.RightNeighb, nIterNum, Comm_mpi, &Req_mpi);
-	}
-}
 
 template <typename VALTYPE>
 void DirichletProblem<VALTYPE>::AgregateSolution()
@@ -378,8 +210,8 @@ void DirichletProblem<VALTYPE>::AgregateSolution()
 	//int nProcCol = 1 << (pow2 / 2 + pow2 % 2);
 	//Grid<VALTYPE> generalSolution(nPointsX_nompi, nPointsY_nompi);
 	//generalSolution.Fill(BoundaryFunction, FILL_BOUNDARY, x0_nompi, y0_nompi, fStepX_nompi, fStepY_nompi);
-	//float * pDst = generalSolution.ptrData.get();
-	//float * pSrc = solution.ptrData.get();
+	//float * pDst = generalSolution.ptrData;
+	//float * pSrc = solution.ptrData;
 	//MPI_Request Req_mpi;
 	//for (int i = 0; i < nProcRow; ++i)
 	//{
@@ -416,21 +248,139 @@ void DirichletProblem<VALTYPE>::AgregateSolution()
 	{
 		for (int x = 1; x < nPointsX-1; ++x)
 		{
-			std::cout << x0 + fStepX*x << ' ' << y0 + fStepY*y << ' ' << solution.ptrData.get()[y*nPointsX + x] << std::endl;
+			//std::cout << x0 + fStepX*x << ' ' << y0 + fStepY*y << ' ' << solution.ptrData[y*nPointsX + x] << std::endl;
+			std::cout << solution.ptrData[y*nPointsX + x] << ' ';
 		}
+		std::cout << std::endl;
 	}
 	std::cout << std::endl << "Difference" << std::endl;
 	for (int y = 1; y < nPointsY-1; ++y)
 	{
 		for (int x = 1; x < nPointsX-1; ++x)
 		{
-			std::cout << x0 + fStepX*x << ' ' << y0 + fStepY*y <<' '
-				<< fabs(solution.ptrData.get()[y*nPointsX + x] - BoundaryFunction(x0 + fStepX*x, y0 + fStepY*y)) << std::endl;
+			//std::cout << x0 + fStepX*x << ' ' << y0 + fStepY*y <<' '
+			//	<< fabs(solution.ptrData[y*nPointsX + x] - BoundaryFunction(x0 + fStepX*x, y0 + fStepY*y)) << std::endl;
+			std::cout << fabs(solution.ptrData[y*nPointsX + x] - BoundaryFunction(x0 + fStepX*x, y0 + fStepY*y)) << ' ';
 		}
+		std::cout<<std::endl;
 	}
 	
 }
 
+template <typename VALTYPE>
+VALTYPE DirichletProblem<VALTYPE>::SolveMPI()
+{
+	MPI_Init(NULL, NULL);
+	Comm_mpi = MPI_COMM_WORLD;
+	InitSubproblem_mpi();
+	GridMPI<VALTYPE> p(nPointsY, nPointsX,nProcIndex,nNumProc);
+	p.Fill(BoundaryFunction, FILL_BOUNDARY, x0, y0, fStepX, fStepY);
+	GridMPI<VALTYPE> F(nPointsY, nPointsX, nProcIndex, nNumProc);
+	F.Fill(AppFunction, FILL_ALL, x0, y0, fStepX, fStepY);
+
+	GridMPI<VALTYPE> r(nPointsY, nPointsX, nProcIndex, nNumProc);
+	GridMPI<VALTYPE> g(nPointsY, nPointsX, nProcIndex, nNumProc);
+	GridMPI<VALTYPE> g_1(nPointsY, nPointsX, nProcIndex, nNumProc);
+	GridMPI<VALTYPE> rLap(nPointsY, nPointsX, nProcIndex, nNumProc);
+	GridMPI<VALTYPE> gLap(nPointsY, nPointsX, nProcIndex, nNumProc);
+
+	VALTYPE tau = 0;
+	VALTYPE alpha = 0;
+	VALTYPE diff = 0;
+	VALTYPE k = fHalfStepX * fHalfStepY; //to dot product
+
+	r.Laplacian(p, fStepX, fStepY, fHalfStepX, fHalfStepY);
+	r -= F; //r_{1} = d(p) - F
+	r.Send(1, Comm_mpi);
+	r.Refresh(1, Comm_mpi);
+	g_1 = r; //запомнили для следующей итерации g_{1}
+	
+	rLap.Laplacian(r, fStepX, fStepY, fHalfStepX, fHalfStepY);// d(r_{1})
+	tau = EstimateTauMPI(r, r, rLap, r, k,Comm_mpi);
+	r *= tau;
+	p -= r;
+	p.Send(1, Comm_mpi);
+	p.Refresh(1, Comm_mpi);
+	diff = EstimateGlobalDiffMPI(r, Comm_mpi);
+	num_iter = 1;
+	//other iterations
+	while (diff > eps)
+	{
+		++num_iter;
+		r.Laplacian(p, fStepX, fStepY, fHalfStepX, fHalfStepY);
+		r -= F; // r_{k}
+
+		r.Send(num_iter, Comm_mpi);
+		r.Refresh(num_iter, Comm_mpi);
+		rLap.Laplacian(r, fStepX, fStepY, fHalfStepX, fHalfStepY);
+		
+		g_1.Send(num_iter, Comm_mpi);
+		g_1.Refresh(num_iter, Comm_mpi);
+		gLap.Laplacian(g_1, fStepX, fStepY, fHalfStepX, fHalfStepY);
+
+		alpha = EstimateTauMPI(rLap, g_1, gLap, g_1, k,Comm_mpi);
+		g_1 *= alpha;
+		g = r;
+		g -= g_1; //g_{k}=r_{k}-alpha*g_{k-1}
+		g.Send(num_iter, Comm_mpi);
+		g.Refresh(num_iter, Comm_mpi);
+		g_1 = g; //запомнили
+
+		gLap.Laplacian(g, fStepX, fStepY, fHalfStepX, fHalfStepY);
+		tau = EstimateTauMPI(r, g, gLap, g, k, Comm_mpi);
+		//if (!nProcIndex)
+		//	std::cout << tau << std::endl;
+		g *= tau;
+		diff = EstimateGlobalDiffMPI(g, Comm_mpi);;
+		p -= g; // p_{k+1} = p_{k} - alpha*g_{k}
+		
+///////////////////////////////////////
+float maxV = -1;
+VALTYPE * data = p.ptrData;
+for (int i = 1; i < p.nRows - 1; ++i)
+{
+	for (int j = 1; j < p.nCols - 1; ++j)
+	{
+		double diffV = fabs(data[i*p.nCols + j] - BoundaryFunction(x0 + j*fStepX, y0 + i*fStepX));
+		if (diffV > maxV)
+		{
+			maxV = diffV;
+		}
+	}
+}
+float GlobalErr = 0;
+float LocalErr = maxV;
+MPI_Allreduce(&LocalErr, &GlobalErr, 1, MPI_FLOAT, MPI_MAX, Comm_mpi);
+maxV = GlobalErr;
+//////////////////////////////////
+
+		error = maxV;
+		p.Send(num_iter, Comm_mpi);
+		p.Refresh(num_iter, Comm_mpi);
+		if (!nProcIndex)
+		{
+			//std::cout << num_iter << ' ' << error << std::endl;
+		}
+	}
+	//solution = p;
+	if (!nProcIndex)
+	{
+		std::cout << num_iter << ' ' << error << std::endl;
+		//AgregateSolution();
+		//Sig(Comm_mpi);
+		//Wait(Comm_mpi);
+	}
+	else
+	{
+		//Wait(Comm_mpi);
+		//AgregateSolution();
+		//Sig(Comm_mpi);
+	}
+	MPI_Finalize();
+	return 0;
+
+}
+/*
 template <typename VALTYPE>
 VALTYPE DirichletProblem<VALTYPE>::SolveMPI()
 {
@@ -457,7 +407,7 @@ VALTYPE DirichletProblem<VALTYPE>::SolveMPI()
 
 
 								//first iteration
-		r.Laplacian(p, fStepX, fStepY, fHalfStepX);
+		r.Laplacian(p, fStepX, fStepY, fHalfStepX, fHalfStepY);
 		//r.dump("Lap(p)");
 		r -= F; //r_{1} = d(p) - F
 	//	if (!nProcIndex)
@@ -474,10 +424,9 @@ VALTYPE DirichletProblem<VALTYPE>::SolveMPI()
 	//	}
 		//r.dump("Lap(p)-F");
 		g_1 = r; //запомнили для следующей итерации g_{1}
-		MPI_Barrier(Comm_mpi);
 		SendBoundaries(r, 1);
 		RefreshBoundaries(r, 1);
-		rLap.Laplacian(r, fStepX, fStepY, fHalfStepX);// d(r_{1})
+		rLap.Laplacian(r, fStepX, fStepY, fHalfStepX, fHalfStepY);// d(r_{1})
 	//	if (!nProcIndex)
 	//	{
 	//		rLap.dump("RLap");
@@ -529,7 +478,6 @@ VALTYPE DirichletProblem<VALTYPE>::SolveMPI()
 //		}
 		
 		num_iter = 1;
-		MPI_Barrier(Comm_mpi);
 		SendBoundaries(p, 1);
 		RefreshBoundaries(p, 1);
 		//other iterations
@@ -551,7 +499,7 @@ VALTYPE DirichletProblem<VALTYPE>::SolveMPI()
 		//		Sig(Comm_mpi);
 		//	}
 			
-			r.Laplacian(p, fStepX, fStepY, fHalfStepX);
+			r.Laplacian(p, fStepX, fStepY, fHalfStepX, fHalfStepY);
 			//r.dump("Lap(r)");
 			r -= F; // r_{k}
 			MPI_Barrier(Comm_mpi);
@@ -570,7 +518,7 @@ VALTYPE DirichletProblem<VALTYPE>::SolveMPI()
 	//			Sig(Comm_mpi);
 	//		}
 			//r.dump("-F");
-			rLap.Laplacian(r, fStepX, fStepY, fHalfStepX);
+			rLap.Laplacian(r, fStepX, fStepY, fHalfStepX, fHalfStepY);
 		//	if (!nProcIndex)
 		//	{
 		//		rLap.dump("rLap");
@@ -586,7 +534,7 @@ VALTYPE DirichletProblem<VALTYPE>::SolveMPI()
 			//rLap.dump("Lap(Lap(r))");
 			SendBoundaries(g_1, num_iter);
 			RefreshBoundaries(g_1, num_iter);
-			gLap.Laplacian(g_1, fStepX, fStepY, fHalfStepX);
+			gLap.Laplacian(g_1, fStepX, fStepY, fHalfStepX, fHalfStepY);
 	//		if (!nProcIndex)
 	//		{
 	//			gLap.dump("gLap");
@@ -600,7 +548,7 @@ VALTYPE DirichletProblem<VALTYPE>::SolveMPI()
 	//			Sig(Comm_mpi);
 	//		}
 			//gLap.dump("gLap");
-			//if (memcmp(rLap.ptrData.get(), gLap.ptrData.get(), gLap.nCols*gLap.nRows * sizeof(VALTYPE)))
+			//if (memcmp(rLap.ptrData, gLap.ptrData, gLap.nCols*gLap.nRows * sizeof(VALTYPE)))
 			//{
 			//	alpha = DotProduct(rLap, g_1, k) / DotProduct(gLap, g_1, k);
 			//	//std::cout <<"a= "<< alpha << std::endl;
@@ -628,9 +576,9 @@ VALTYPE DirichletProblem<VALTYPE>::SolveMPI()
 			g_1 = g; //запомнили
 			SendBoundaries(g, num_iter);
 			RefreshBoundaries(g, num_iter);
-			gLap.Laplacian(g, fStepX, fStepY, fHalfStepX);
+			gLap.Laplacian(g, fStepX, fStepY, fHalfStepX, fHalfStepY);
 		//	gLap.dump("Lap(g)");
-			//if (memcmp(gLap.ptrData.get(), g.ptrData.get(), g.nCols*g.nRows * sizeof(VALTYPE)))
+			//if (memcmp(gLap.ptrData, g.ptrData, g.nCols*g.nRows * sizeof(VALTYPE)))
 			//{
 			//	tau = DotProduct(r, g, k) / DotProduct(gLap, g, k);
 			//	//std::cout << "tau= " << tau << std::endl;
@@ -673,7 +621,7 @@ VALTYPE DirichletProblem<VALTYPE>::SolveMPI()
 			
 			///////////////////////////////////////
 			float maxV = -std::numeric_limits<VALTYPE>::min();
-			VALTYPE * data = p.ptrData.get();
+			VALTYPE * data = p.ptrData;
 			for (int i = 1; i < p.nRows - 1; ++i)
 			{
 				for (int j = 1; j < p.nCols - 1; ++j)
@@ -751,3 +699,4 @@ VALTYPE DirichletProblem<VALTYPE>::SolveMPI()
 	return 0;
 }
 
+*/
