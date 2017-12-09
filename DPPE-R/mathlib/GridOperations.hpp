@@ -180,11 +180,11 @@ VALTYPE Grid<VALTYPE>::MaxNormDifference() const
 		pCurSrc += 2;
 	}
 #else
-#ifdef OMP
-	#pragma omp parallel for collapse(2)
-#endif
-	VALTYPE * pSrc = ptrData;
 
+	VALTYPE * pSrc = ptrData;
+#ifdef OMP
+#pragma omp parallel for collapse(2)
+#endif
 	for (int i = 1; i < nRows - 1; ++i)
 	{
 		for (int j = 1; j < nCols - 1; ++j)

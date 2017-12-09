@@ -2,7 +2,7 @@
 #define GRID_OPERATIONS_H
 
 //#define LOG
-#define OMP
+//#define OMP
 //#define std11
 
 #include <deque>
@@ -71,7 +71,9 @@ template <typename VALTYPE>
 class GridMPI : public Grid<VALTYPE>
 {
 public:
-
+	using Grid<VALTYPE>::nRows;
+	using Grid<VALTYPE>::nCols;
+	using Grid<VALTYPE>::ptrData;
 	int neighbors[4];
 	int nProcIndex;
 	VALTYPE * pTopBuf;
