@@ -31,14 +31,13 @@ auto start = std::chrono::system_clock::now();
 	else
 	{
 		diff = p.SolveMPI();
-		std::cout << "solve end" << std::endl;
 	}
 
 
 auto end = std::chrono::system_clock::now();
 auto elapsed=std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-std::cout << "Time" << std::endl;
-std::cout << elapsed.count() << '\n';
+//std::cout << "Time" << std::endl;
+//std::cout << elapsed.count() << '\n';
 	
 	return 0;
 }

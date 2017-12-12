@@ -1,7 +1,7 @@
 #ifndef GRID_OPERATIONS_H
 #define GRID_OPERATIONS_H
 
-//#define LOG
+#define LOG
 //#define OMP
 //#define std11
 

@@ -1,4 +1,4 @@
-#include "mpi.h"
+#define OMP1
 
 template <typename VALTYPE>
 Grid<VALTYPE>::Grid(const int nRows_, const int nCols_)
@@ -44,7 +44,7 @@ void Grid<VALTYPE>::operator -= (const Grid<VALTYPE> & grid)
 	}
 #else
 
-#ifdef OMP
+#ifdef OMP1
 	#pragma omp parallel for collapse(2)
 #endif
 	for (int y = 1; y < nRows - 1; ++y)
@@ -74,7 +74,7 @@ void Grid<VALTYPE>::operator *= (const VALTYPE nMultiplier)
 	}
 #else
 	VALTYPE *pData = ptrData;
-#ifdef OMP
+#ifdef OMP1
 	#pragma omp parallel for collapse(2)
 #endif
 	for (int y = 1; y < nRows - 1; ++y)
@@ -142,7 +142,7 @@ void Grid<VALTYPE>::Laplacian(const Grid<VALTYPE> & grid, const VALTYPE& fStepX,
 #else
 	VALTYPE * pSrc = grid.ptrData;
 	VALTYPE * pDst = ptrData;
-#ifdef OMP
+#ifdef OMP1
 	#pragma omp parallel for collapse(2)
 #endif
 	for (int y = 1; y < nRows - 1; ++y)
@@ -180,13 +180,15 @@ VALTYPE Grid<VALTYPE>::MaxNormDifference() const
 		pCurSrc += 2;
 	}
 #else
-
 	VALTYPE * pSrc = ptrData;
-#ifdef OMP
-#pragma omp parallel for collapse(2)
+#ifdef OMP1
+	#pragma omp parallel for collapse(2) reduction(max:fMax)
 #endif
 	for (int i = 1; i < nRows - 1; ++i)
 	{
+#ifdef OMP
+		#pragma omp parallel for reduction(max:fMax)
+#endif
 		for (int j = 1; j < nCols - 1; ++j)
 		{
 			auto fDiff = fabs(pSrc[i*nCols+j]);
@@ -339,11 +341,14 @@ VALTYPE DotProduct(const Grid<VALTYPE> & grid1, const Grid<VALTYPE> & grid2, con
 #else
 	VALTYPE * pMult1 = grid1.ptrData;
 	VALTYPE * pMult2 = grid2.ptrData;
-#ifdef OMP
-	#pragma omp parallel for
+#ifdef OMP1
+	#pragma omp parallel for collapse(2) reduction(+:fResult)
 #endif
 	for (int y = 1; y < grid1.nRows - 1; ++y)
 	{
+#ifdef OMP
+		#pragma omp parallel for reduction(+:fResult)
+#endif 
 		for (int x = 1; x < grid1.nCols - 1; ++x)
 		{
 			fResult += fPowK * pMult1[y*grid1.nCols+x] * pMult2[y*grid1.nCols+x];
@@ -375,11 +380,14 @@ VALTYPE DotProduct_MPI(const Grid<VALTYPE> & grid1, const Grid<VALTYPE> & grid2,
 #else
 	VALTYPE * pMult1 = grid1.ptrData;
 	VALTYPE * pMult2 = grid2.ptrData;
-#ifdef OMP
-	#pragma omp parallel for collapse(2)
+#ifdef OMP1
+	#pragma omp parallel for collapse(2) reduction(+:fResult)
 #endif
 	for (int y = numTopNeighb; y < grid1.nRows - 1; ++y)
 	{
+#ifdef OMP
+                #pragma omp parallel for reduction(+:fResult)
+#endif
 		for (int x = numLeftNeighb; x < grid1.nCols - 1; ++x)
 		{
 			fResult += k * pMult1[y*grid1.nCols+x] * pMult2[y*grid1.nCols+x];
@@ -425,6 +433,8 @@ GridMPI<VALTYPE>::GridMPI(const int nRows_, const int nCols_, const int nProcInd
 	pBotBuf = hasBotNeighb() ? new VALTYPE[2 * nCols * sizeof(VALTYPE)] : 0;
 	pLeftBuf = hasLeftNeighb() ? new VALTYPE[2 * nRows * sizeof(VALTYPE)] : 0;
 	pRightBuf = hasRightNeighb() ? new VALTYPE[2 * nRows * sizeof(VALTYPE)] : 0;
+
+
 
 }
 
